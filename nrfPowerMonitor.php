@@ -40,12 +40,14 @@ class nRFPowerMonitor
 
 	public function enableRelay()
 	{
-		$this->writePacket(hex2bin("aa0567" . $this->address . "00180000000000000000000000000000000000000000000000000000"));
+		$byte = $this->hexPad(hexdec($this->address) + 0x16);
+		$this->writePacket(hex2bin("aa0567" . $this->address . "00".$byte."0000000000000000000000000000000000000000000000000000"));
 	}
 
 	public function disableRelay()
 	{
-		$this->writePacket(hex2bin("aa0567" . $this->address . "ff170000000000000000000000000000000000000000000000000000"));
+		$byte = $this->hexPad(hexdec($this->address) + 0x15);
+		$this->writePacket(hex2bin("aa0567" . $this->address . "ff".$byte."0000000000000000000000000000000000000000000000000000"));
 	}
 
 	public function readData($activeRequest = true)
@@ -63,15 +65,11 @@ class nRFPowerMonitor
 				// Sensor hasn't replied in 1 second.
 				// Maybe it was restarted and hasn't been initialized yet.
 
-				// aa040201b1000000000000000000000000000000000000000000000000000000
-				
-				//$this->writePacket(hex2bin("aa0402" . $this->address . "b2000000000000000000000000000000000000000000000000000000"));
-				//$this->writePacket(hex2bin("aa04ff" . $this->address . "af000000000000000000000000000000000000000000000000000000"));
-				//$this->writePacket(hex2bin("aa04ff" . $this->address . "af1200000000000000000000040002310f6a6fbf0f5f0f5f96000000"));
-											  aa040204                    b4000000000000000000000000000000000000000000000000000000
-				  $this->writePacket(hex2bin("aa04ff" . $this->address . "b1000000000000000000000000000000000000000000000000000000"));
-				  $this->writePacket(hex2bin("aa04ff" . $this->address . "ae000000000000000000000000000000000000000000000000000000"));
-				  $this->writePacket(hex2bin("aa04ff" . $this->address . "ae1200000000000000000000040002310f6a6fbf0f5f0f5feb000000"));
+				$byte1 = $this->hexPad(hexdec($this->address) + 0x03);
+				$byte2 = $this->hexPad(hexdec($this->address) + 0xAD);
+
+				$this->writePacket(hex2bin("aa04ff" . $this->address . $byte1 . "000000000000000000000000000000000000000000000000000000"));
+				$this->writePacket(hex2bin("aa04ff" . $this->address . $byte2 . "000000000000000000000000000000000000000000000000000000"));
 
 				usleep ( 100 * 1000 );
 				$this->flushQueue(); 
@@ -79,8 +77,9 @@ class nRFPowerMonitor
 			
 			if ($activeRequest)
 			{
-				// 02 - $this->writePacket(hex2bin("aa0401" . $this->address . "b1180000000000000000000000000000000000000000000000000000"));
-				$this->writePacket(hex2bin("aa0401" . $this->address . "b0000000000000000000000000000000000000000000000000000000"));
+				// For unknown reason, the activeRequest-packet contains the address + 0xAF. 
+				$addressByte = $this->hexPad(hexdec($this->address) + 175);
+			    $this->writePacket(hex2bin("aa0401" . $this->address . $addressByte . "000000000000000000000000000000000000000000000000000000"));
 			}
 			usleep ( 10 * 1000 );
 
@@ -112,7 +111,10 @@ class nRFPowerMonitor
 		return false; 
 	}
 
-
+	private function hexPad($data)
+	{
+		return sprintf('%02x', $data);
+	}
 	public function configure($name, $value)
 	{
 		file_put_contents($this->nrfPath . "/" . $name, $value);
@@ -151,6 +153,7 @@ class nRFPowerMonitor
 
 	public function writePacket($data)
 	{
+		echo date("H:i:s") . " - " . bin2hex($data) . "\n";
 		$hndl = fopen("/dev/nrf24l01", "wb");
 		fwrite($hndl, $data);
 		fclose($hndl);
