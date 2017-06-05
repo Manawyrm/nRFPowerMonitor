@@ -61,7 +61,8 @@ class nRFPowerMonitor
 		{
 			if ($start + 1 < microtime(true))
 			{
-				echo "Sensor hasn't replied in 1 second!\n";
+				if ($this->debug)
+					echo "Sensor hasn't replied in 1 second!\n";
 				// Sensor hasn't replied in 1 second.
 				// Maybe it was restarted and hasn't been initialized yet.
 
@@ -88,11 +89,9 @@ class nRFPowerMonitor
 			{
 				echo "Received packet! - Data: " . bin2hex($packet) . "\n";
 			}
-			//var_dump(bin2hex($packet));
+
 			if (bin2hex($packet[1]) == "1c" && bin2hex($packet[2]) == "01")
 			{
-				//echo bin2hex($packet) . "\n";
-
 				$data = unpack("Cpreamble/CrequestType/Cunknown1/Caddress/nvoltage/ncurrent/npower/npower", $packet);
 
 				$return = [
@@ -153,7 +152,9 @@ class nRFPowerMonitor
 
 	public function writePacket($data)
 	{
-		echo date("H:i:s") . " - " . bin2hex($data) . "\n";
+		if ($this->debug)
+			echo date("H:i:s") . " - Sent packet: " . bin2hex($data) . "\n";
+		
 		$hndl = fopen("/dev/nrf24l01", "wb");
 		fwrite($hndl, $data);
 		fclose($hndl);
