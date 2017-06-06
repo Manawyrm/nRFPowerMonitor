@@ -23,6 +23,20 @@ class nRFPowerMonitor
 		$this->channel = $channelN;
 		$this->address = $addressN;
 		$this->debug   = $debugN;
+
+		$this->configureRadio();
+	}
+
+	public function initializeSensor()
+	{
+		// Send the init commands to the sensor module
+		$this->writePacket($this->calculateChecksum("aa04ff" . $this->address . "00", 4));
+		usleep ( 100 * 1000 );
+		$this->flushQueue(); 
+	}
+
+	public function configureRadio()
+	{
 		$this->configure("rf/datarate", "2000");
 		$this->configure("rf/channel", $this->channel);
 		$this->configure("crc", "2");
@@ -30,28 +44,45 @@ class nRFPowerMonitor
 		$this->configure("pipe0/address", "89674523" . $this->address);
 		$this->configure("pipe0/dynamicpayload", "0");
 		$this->configure("pipe0/payloadwidth", "32");
-		//$this->configure("pipe0/autoack", "1");
+	}
 
-		/*$this->configure("pipe1/dynamicpayload", "0");
-		$this->configure("pipe1/address", "89674523" . $this->address);
-		$this->configure("pipe1/payloadwidth", "32");
-		$this->configure("pipe1/autoack", "0");*/
+	public function calculateChecksum($data, $offset, $hex = true)
+	{
+		$data = hex2bin($data);
+		$checksum = 0;
+		for ($i=0; $i < $offset; $i++)
+		{ 
+			$checksum += ord($data[$i]);
+		}
+		$checksum = $checksum & 0xFF; 
+
+		$data[$offset] = chr($checksum);
+
+		if (!$hex)
+			$data = bin2hex($data);
+
+		return $data;
 	}
 
 	public function enableRelay()
 	{
-		$byte = $this->hexPad(hexdec($this->address) + 0x16);
-		$this->writePacket(hex2bin("aa0567" . $this->address . "00".$byte."0000000000000000000000000000000000000000000000000000"));
+		$this->configureRadio();
+		usleep(1 * 1000);
+		$this->writePacket($this->calculateChecksum("aa0567" . $this->address . "0000", 5));
 	}
 
 	public function disableRelay()
 	{
-		$byte = $this->hexPad(hexdec($this->address) + 0x15);
-		$this->writePacket(hex2bin("aa0567" . $this->address . "ff".$byte."0000000000000000000000000000000000000000000000000000"));
+		$this->configureRadio();
+		usleep(1 * 1000);
+		$this->writePacket($this->calculateChecksum("aa0567" . $this->address . "ff00", 5));
 	}
 
 	public function readData($activeRequest = true)
 	{
+		$this->configureRadio();
+		usleep(1 * 1000);
+
 		$this->flushQueue(); 
 
 		$data = false;
@@ -59,28 +90,19 @@ class nRFPowerMonitor
 
 		while ($start + 5 > microtime(true))
 		{
-			if ($start + 1 < microtime(true))
+			if ($start + 2 < microtime(true))
 			{
 				if ($this->debug)
 					echo "Sensor hasn't replied in 1 second!\n";
+				
 				// Sensor hasn't replied in 1 second.
 				// Maybe it was restarted and hasn't been initialized yet.
-
-				$byte1 = $this->hexPad(hexdec($this->address) + 0x03);
-				$byte2 = $this->hexPad(hexdec($this->address) + 0xAD);
-
-				$this->writePacket(hex2bin("aa04ff" . $this->address . $byte1 . "000000000000000000000000000000000000000000000000000000"));
-				$this->writePacket(hex2bin("aa04ff" . $this->address . $byte2 . "000000000000000000000000000000000000000000000000000000"));
-
-				usleep ( 100 * 1000 );
-				$this->flushQueue(); 
+				$this->initializeSensor();
 			}
 			
 			if ($activeRequest)
 			{
-				// For unknown reason, the activeRequest-packet contains the address + 0xAF. 
-				$addressByte = $this->hexPad(hexdec($this->address) + 175);
-			    $this->writePacket(hex2bin("aa0401" . $this->address . $addressByte . "000000000000000000000000000000000000000000000000000000"));
+				$this->writePacket($this->calculateChecksum("aa0401" . $this->address . "00", 4));
 			}
 			usleep ( 10 * 1000 );
 
@@ -152,6 +174,8 @@ class nRFPowerMonitor
 
 	public function writePacket($data)
 	{
+		$data = str_pad($data, 32, "\x00");
+
 		if ($this->debug)
 			echo date("H:i:s") . " - Sent packet: " . bin2hex($data) . "\n";
 		
