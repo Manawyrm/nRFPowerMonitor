@@ -114,7 +114,7 @@ class nRFPowerMonitor
 
 			if (bin2hex($packet[1]) == "1c" && bin2hex($packet[2]) == "01")
 			{
-				$data = unpack("Cpreamble/CrequestType/Cunknown1/Caddress/nvoltage/ncurrent/npower/npower", $packet);
+				$data = unpack("Cpreamble/CrequestType/Cunknown1/Caddress/nvoltage/ncurrent/Npower/Namphour/Nwatthour", $packet);
 
 				$return = [
 					"requestType" => $data['requestType'],
@@ -123,7 +123,9 @@ class nRFPowerMonitor
 					"voltage"     => $data['voltage'] / 100,
 					"current"     => $data['current'] / 100,
 					"power"       => $data['power'] / 1000,
-				]; 
+                                        "amphour"     => $data['amphour'] / 1000,
+                                        "watthour"    => $data['watthour'] / 1000,
+ 				]; 
 				return $return;
 			}
 
